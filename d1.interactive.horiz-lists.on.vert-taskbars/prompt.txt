@@ -1,0 +1,17 @@
+I'm interested in replicating some interactive web page functionality.
+
+The web page at this URL: https://www.laurieherault.com/articles/a-thermal-receipt-printer-cured-my-procrastination
+
+...has an interactive list that begins immediately after the text section that says: "Test the concept in this interactive demo:"
+
+For reference, I will attach a screenshot image as well.
+
+I'd like to understand how this interactive front end functionality was implemented.
+
+I'm going to guess it's a very clever combination of HTML, CSS, and JavaScript.
+
+But again -- I'm not a front end developer, so I'm not very good at looking at page source and figuring out how stuff was done, and how to abstract out the approach so it an be replicated. I'm a back end developer who wants to use this elegant approach to display my particular data, which is completely different from this particular site.
+
+Can you give an analysis of how this was implemented, as well as an architecture structure analysis, and perhaps an architecture diagram?
+
+An extremely useful artifact set would be a set of files with the HTML, CSS, and JavaScript necessary to reproduce the display, and the text items it contains, without any of the other text from the web page outside the context of that specific interactive diagram.
