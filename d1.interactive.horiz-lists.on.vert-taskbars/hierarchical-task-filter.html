@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hierarchical Task Filter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #fbbf24;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            margin-bottom: 30px;
+            font-size: 0.95rem;
+        }
+
+        .columns-container {
+            display: flex;
+            gap: 0;
+            background: #2a2a2a;
+            border: 1px solid #2a2a2a;
+            border-radius: 4px;
+            overflow: hidden;
+            min-height: 400px;
+            position: relative;
+        }
+
+        .column {
+            flex: 1;
+            background: #1a1a1a;
+            padding: 0;
+            min-width: 200px;
+            max-width: 350px;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #2a2a2a;
+            position: relative;
+        }
+
+        .column:last-child {
+            border-right: none;
+        }
+
+        .task-list {
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .task-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            border-bottom: 1px solid #2a2a2a;
+            font-size: 0.95rem;
+            position: relative;
+        }
+
+        .task-item:hover {
+            background: #252525;
+        }
+
+        .task-item.selected {
+            background: #fbbf24;
+            color: #1a1a1a;
+            font-weight: 500;
+        }
+
+        /* Connector lines */
+        .connector-line {
+            position: absolute;
+            background: #fbbf24;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .connector-horizontal {
+            height: 2px;
+            left: 100%;
+        }
+
+        .connector-vertical {
+            width: 2px;
+            left: 100%;
+        }
+
+        /* Scrollbar styling */
+        .task-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .task-list::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        .task-list::-webkit-scrollbar-thumb {
+            background: #3a3a3a;
+            border-radius: 4px;
+        }
+
+        .task-list::-webkit-scrollbar-thumb:hover {
+            background: #4a4a4a;
+        }
+
+        @media (max-width: 768px) {
+            .columns-container {
+                flex-direction: column;
+            }
+            
+            .column {
+                max-width: 100%;
+                min-height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test the concept in this interactive demo:</h1>
+        <p class="subtitle">Click on highlighted tasks to reveal subtasks in the next column</p>
+        
+        <div class="columns-container" id="columnsContainer">
+            <!-- Columns will be dynamically generated here -->
+        </div>
+    </div>
+
+    <script>
+        // Complete data structure matching the screenshot
+        const taskData = {
+            name: 'root',
+            children: [
+                {
+                    name: 'Clean the house',
+                    children: [
+                        { name: 'Clean the kitchen', children: [] },
+                        { name: 'Clean the office', children: [] },
+                        { name: 'Clean the bedroom', children: [] }
+                    ]
+                },
+                {
+                    name: 'Cook dinner',
+                    children: [
+                        { 
+                            name: 'Prepare ingredients',
+                            children: [
+                                { name: 'Set the table', children: [] },
+                                { name: 'Plate the food', children: [] },
+                                { name: 'Add garnish', children: [] },
+                                { name: 'Serve drinks', children: [] }
+                            ]
+                        },
+                        { name: 'Cooking', children: [] },
+                        { 
+                            name: 'Serve',
+                            children: [
+                                { name: 'Set the table', children: [] },
+                                { name: 'Plate the food', children: [] },
+                                { name: 'Add garnish', children: [] },
+                                { name: 'Serve drinks', children: [] }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: 'Plan vacation',
+                    children: [
+                        { name: 'Research destinations', children: [] },
+                        { name: 'Book flights', children: [] },
+                        { name: 'Reserve hotels', children: [] },
+                        { name: 'Plan activities', children: [] }
+                    ]
+                },
+                {
+                    name: 'Weekly workout plan',
+                    children: [
+                        { name: 'Monday: Cardio', children: [] },
+                        { name: 'Tuesday: Strength', children: [] },
+                        { name: 'Wednesday: Rest', children: [] },
+                        { name: 'Thursday: Yoga', children: [] },
+                        { name: 'Friday: HIIT', children: [] }
+                    ]
+                }
+            ]
+        };
+
+        // State management
+        let selectedPath = [1, 2]; // Pre-select "Cook dinner" -> "Serve" to match screenshot
+
+        // Initialize the view
+        function init() {
+            renderColumns();
+        }
+
+        // Main rendering function
+        function renderColumns() {
+            const container = document.getElementById('columnsContainer');
+            container.innerHTML = '';
+
+            // Show columns based on selection
+            const numColumns = 3; // Always show 3 columns
+            
+            for (let columnIndex = 0; columnIndex < numColumns; columnIndex++) {
+                const column = createColumn(columnIndex);
+                if (column) {
+                    container.appendChild(column);
+                }
+            }
+
+            // Draw connectors after DOM is ready
+            setTimeout(drawConnectors, 10);
+        }
+
+        // Create a single column
+        function createColumn(columnIndex) {
+            const column = document.createElement('div');
+            column.className = 'column';
+            column.dataset.columnIndex = columnIndex;
+
+            // Get tasks for this column level
+            const tasks = getTasksForColumn(columnIndex);
+            
+            if (!tasks || tasks.length === 0) {
+                return null;
+            }
+
+            // Task list
+            const taskList = document.createElement('div');
+            taskList.className = 'task-list';
+
+            tasks.forEach((task, taskIndex) => {
+                const taskItem = createTaskItem(task, columnIndex, taskIndex);
+                taskList.appendChild(taskItem);
+            });
+
+            column.appendChild(taskList);
+            return column;
+        }
+
+        // Create a single task item
+        function createTaskItem(task, columnIndex, taskIndex) {
+            const item = document.createElement('div');
+            item.className = 'task-item';
+            item.dataset.columnIndex = columnIndex;
+            item.dataset.taskIndex = taskIndex;
+
+            if (selectedPath[columnIndex] === taskIndex) {
+                item.classList.add('selected');
+            }
+
+            item.textContent = task.name;
+
+            // Click handler
+            item.addEventListener('click', () => {
+                handleTaskClick(columnIndex, taskIndex);
+            });
+
+            return item;
+        }
+
+        // Get tasks for a specific column
+        function getTasksForColumn(columnIndex) {
+            if (columnIndex === 0) {
+                return taskData.children;
+            }
+
+            let currentLevel = taskData.children;
+            
+            for (let i = 0; i < columnIndex; i++) {
+                const selectedIndex = selectedPath[i];
+                if (selectedIndex === undefined || !currentLevel[selectedIndex]) {
+                    return null;
+                }
+                currentLevel = currentLevel[selectedIndex].children;
+                if (!currentLevel || currentLevel.length === 0) {
+                    return null;
+                }
+            }
+
+            return currentLevel;
+        }
+
+        // Handle task click
+        function handleTaskClick(columnIndex, taskIndex) {
+            const tasks = getTasksForColumn(columnIndex);
+            const selectedTask = tasks[taskIndex];
+
+            // If clicking the same task, deselect it
+            if (selectedPath[columnIndex] === taskIndex) {
+                selectedPath = selectedPath.slice(0, columnIndex);
+            } else {
+                // Update selection path
+                selectedPath = selectedPath.slice(0, columnIndex);
+                selectedPath[columnIndex] = taskIndex;
+            }
+
+            renderColumns();
+        }
+
+        // Draw connector lines between selected tasks
+        function drawConnectors() {
+            // Remove old connectors
+            document.querySelectorAll('.connector-line').forEach(el => el.remove());
+
+            for (let i = 0; i < selectedPath.length; i++) {
+                const sourceColumn = i;
+                const targetColumn = i + 1;
+
+                const sourceItem = document.querySelector(
+                    `.task-item[data-column-index="${sourceColumn}"][data-task-index="${selectedPath[i]}"]`
+                );
+                const targetTasks = getTasksForColumn(targetColumn);
+                
+                if (!sourceItem || !targetTasks || targetTasks.length === 0) continue;
+
+                const targetItems = document.querySelectorAll(
+                    `.task-item[data-column-index="${targetColumn}"]`
+                );
+
+                if (targetItems.length === 0) continue;
+
+                const sourceRect = sourceItem.getBoundingClientRect();
+                const containerRect = document.getElementById('columnsContainer').getBoundingClientRect();
+
+                // Get first and last target items for vertical line
+                const firstTargetRect = targetItems[0].getBoundingClientRect();
+                const lastTargetRect = targetItems[targetItems.length - 1].getBoundingClientRect();
+
+                // Horizontal line from source to column edge
+                const hLine = document.createElement('div');
+                hLine.className = 'connector-line connector-horizontal';
+                hLine.style.top = (sourceRect.top + sourceRect.height / 2 - containerRect.top) + 'px';
+                hLine.style.width = '20px';
+                sourceItem.appendChild(hLine);
+
+                // Vertical line spanning all target items
+                const vLine = document.createElement('div');
+                vLine.className = 'connector-line connector-vertical';
+                const vTop = firstTargetRect.top + firstTargetRect.height / 2 - containerRect.top;
+                const vBottom = lastTargetRect.top + lastTargetRect.height / 2 - containerRect.top;
+                vLine.style.top = vTop + 'px';
+                vLine.style.height = (vBottom - vTop) + 'px';
+                vLine.style.left = (sourceRect.right - containerRect.left + 20) + 'px';
+                document.getElementById('columnsContainer').appendChild(vLine);
+
+                // Horizontal lines to each target
+                targetItems.forEach(targetItem => {
+                    const targetRect = targetItem.getBoundingClientRect();
+                    const tLine = document.createElement('div');
+                    tLine.className = 'connector-line connector-horizontal';
+                    tLine.style.top = (targetRect.top + targetRect.height / 2 - containerRect.top) + 'px';
+                    tLine.style.left = (sourceRect.right - containerRect.left + 20) + 'px';
+                    tLine.style.width = (targetRect.left - sourceRect.right - 20) + 'px';
+                    document.getElementById('columnsContainer').appendChild(tLine);
+                });
+            }
+        }
+
+        // Re-draw connectors on window resize
+        window.addEventListener('resize', drawConnectors);
+
+        // Initialize on page load
+        init();
+    </script>
+</body>
+</html>

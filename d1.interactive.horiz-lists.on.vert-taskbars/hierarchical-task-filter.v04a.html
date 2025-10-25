@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hierarchical Task Filter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #fbbf24;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            margin-bottom: 30px;
+            font-size: 0.95rem;
+        }
+
+        .columns-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0;
+            background: #1a1a1a;
+            border: 2px solid #3a3a3a;
+            border-radius: 4px;
+            overflow: hidden;
+            min-height: 400px;
+            position: relative;
+        }
+
+        .svg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .connector-path {
+            fill: none;
+            stroke: #fbbf24;
+            stroke-width: 2px;
+        }
+
+        .column {
+            background: #1a1a1a;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #3a3a3a;
+            position: relative;
+        }
+
+        .column:last-child {
+            border-right: none;
+        }
+
+        .column.empty {
+            background: #1a1a1a;
+        }
+
+        .task-list {
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+            padding: 12px 0;
+        }
+
+        .task-item {
+            padding: 12px 16px;
+            margin: 8px 20px;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            position: relative;
+            background: transparent;
+        }
+
+        .task-item:hover {
+            background: #252525;
+        }
+
+        .task-item.selected {
+            background: #fbbf24;
+            color: #1a1a1a;
+            font-weight: 500;
+        }
+
+
+
+        /* Scrollbar styling */
+        .task-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .task-list::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        .task-list::-webkit-scrollbar-thumb {
+            background: #3a3a3a;
+            border-radius: 4px;
+        }
+
+        .task-list::-webkit-scrollbar-thumb:hover {
+            background: #4a4a4a;
+        }
+
+        @media (max-width: 768px) {
+            .columns-container {
+                flex-direction: column;
+            }
+            
+            .column {
+                max-width: 100%;
+                min-height: 200px;
+            }
+
+            .connector-line {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test the concept in this interactive demo:</h1>
+        <p class="subtitle">Click on tasks to reveal subtasks in the next column</p>
+        
+        <div class="columns-container" id="columnsContainer">
+            <svg class="svg-overlay" id="svgOverlay">
+                <!-- Curved connector paths will be drawn here -->
+            </svg>
+            <!-- Columns will be dynamically generated here -->
+        </div>
+    </div>
+
+    <script>
+        // Complete hierarchical data structure
+        const taskData = {
+            name: 'root',
+            children: [
+                {
+                    name: 'Clean the house',
+                    children: [
+                        { 
+                            name: 'Clean the kitchen',
+                            children: [
+                                { name: 'Wash dishes', children: [] },
+                                { name: 'Wipe counters', children: [] },
+                                { name: 'Sweep floor', children: [] },
+                                { name: 'Take out trash', children: [] }
+                            ]
+                        },
+                        { 
+                            name: 'Clean the office',
+                            children: [
+                                { name: 'Organize desk', children: [] },
+                                { name: 'File papers', children: [] },
+                                { name: 'Dust surfaces', children: [] },
+                                { name: 'Vacuum floor', children: [] }
+                            ]
+                        },
+                        { 
+                            name: 'Clean the bedroom',
+                            children: [
+                                { name: 'Make the bed', children: [] },
+                                { name: 'Organize closet', children: [] },
+                                { name: 'Change sheets', children: [] },
+                                { name: 'Vacuum floor', children: [] }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: 'Cook dinner',
+                    children: [
+                        { 
+                            name: 'Prepare ingredients',
+                            children: [
+                                { name: 'Wash vegetables', children: [] },
+                                { name: 'Chop ingredients', children: [] },
+                                { name: 'Measure spices', children: [] },
+                                { name: 'Preheat oven', children: [] }
+                            ]
+                        },
+                        { 
+                            name: 'Cooking',
+                            children: [
+                                { name: 'Sauté vegetables', children: [] },
+                                { name: 'Cook protein', children: [] },
+                                { name: 'Make sauce', children: [] },
+                                { name: 'Prepare side dish', children: [] }
+                            ]
+                        },
+                        { 
+                            name: 'Serve',
+                            children: [
+                                { name: 'Set the table', children: [] },
+                                { name: 'Plate the food', children: [] },
+                                { name: 'Add garnish', children: [] },
+                                { name: 'Serve drinks', children: [] }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: 'Plan vacation',
+                    children: [
+                        { 
+                            name: 'Research destinations',
+                            children: [
+                                { name: 'Check weather', children: [] },
+                                { name: 'Read reviews', children: [] },
+                                { name: 'Compare costs', children: [] },
+                                { name: 'List attractions', children: [] }
+                            ]
+                        },
+                        { 
+                            name: 'Book travel',
+                            children: [
+                                { name: 'Book flights', children: [] },
+                                { name: 'Reserve hotel', children: [] },
+                                { name: 'Rent car', children: [] },
+                                { name: 'Buy insurance', children: [] }
+                            ]
+                        },
+                        { 
+                            name: 'Plan itinerary',
+                            children: [
+                                { name: 'Schedule activities', children: [] },
+                                { name: 'Book tours', children: [] },
+                                { name: 'Make reservations', children: [] },
+                                { name: 'Create packing list', children: [] }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: 'Weekly workout plan',
+                    children: [
+                        { 
+                            name: 'Monday',
+                            children: [
+                                { name: 'Warm up', children: [] },
+                                { name: 'Cardio 30min', children: [] },
+                                { name: 'Core exercises', children: [] },
+                                { name: 'Cool down', children: [] }
+                            ]
+                        },
+                        { 
+                            name: 'Wednesday',
+                            children: [
+                                { name: 'Warm up', children: [] },
+                                { name: 'Strength training', children: [] },
+                                { name: 'Stretching', children: [] },
+                                { name: 'Cool down', children: [] }
+                            ]
+                        },
+                        { 
+                            name: 'Friday',
+                            children: [
+                                { name: 'Warm up', children: [] },
+                                { name: 'HIIT workout', children: [] },
+                                { name: 'Yoga', children: [] },
+                                { name: 'Cool down', children: [] }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        // State management - start with no selection to show empty columns
+        let selectedPath = [];
+
+        // Initialize the view
+        function init() {
+            renderColumns();
+        }
+
+        // Main rendering function
+        function renderColumns() {
+            const container = document.getElementById('columnsContainer');
+            const svg = document.getElementById('svgOverlay');
+            
+            // Remove old columns but keep SVG
+            const columns = container.querySelectorAll('.column');
+            columns.forEach(col => col.remove());
+
+            // Always show exactly 3 columns
+            const numColumns = 3;
+            
+            for (let columnIndex = 0; columnIndex < numColumns; columnIndex++) {
+                const column = createColumn(columnIndex);
+                container.appendChild(column);
+            }
+
+            // Draw connectors after DOM is ready
+            setTimeout(drawConnectors, 10);
+        }
+
+        // Create a single column
+        function createColumn(columnIndex) {
+            const column = document.createElement('div');
+            column.className = 'column';
+            column.dataset.columnIndex = columnIndex;
+
+            // Get tasks for this column level
+            const tasks = getTasksForColumn(columnIndex);
+            
+            if (!tasks || tasks.length === 0) {
+                column.classList.add('empty');
+                return column;
+            }
+
+            // Task list
+            const taskList = document.createElement('div');
+            taskList.className = 'task-list';
+
+            tasks.forEach((task, taskIndex) => {
+                const taskItem = createTaskItem(task, columnIndex, taskIndex);
+                taskList.appendChild(taskItem);
+            });
+
+            column.appendChild(taskList);
+            return column;
+        }
+
+        // Create a single task item
+        function createTaskItem(task, columnIndex, taskIndex) {
+            const item = document.createElement('div');
+            item.className = 'task-item';
+            item.dataset.columnIndex = columnIndex;
+            item.dataset.taskIndex = taskIndex;
+
+            if (selectedPath[columnIndex] === taskIndex) {
+                item.classList.add('selected');
+            }
+
+            item.textContent = task.name;
+
+            // Click handler
+            item.addEventListener('click', () => {
+                handleTaskClick(columnIndex, taskIndex);
+            });
+
+            return item;
+        }
+
+        // Get tasks for a specific column
+        function getTasksForColumn(columnIndex) {
+            if (columnIndex === 0) {
+                return taskData.children;
+            }
+
+            let currentLevel = taskData.children;
+            
+            for (let i = 0; i < columnIndex; i++) {
+                const selectedIndex = selectedPath[i];
+                if (selectedIndex === undefined || !currentLevel[selectedIndex]) {
+                    return null;
+                }
+                currentLevel = currentLevel[selectedIndex].children;
+                if (!currentLevel || currentLevel.length === 0) {
+                    return null;
+                }
+            }
+
+            return currentLevel;
+        }
+
+        // Handle task click
+        function handleTaskClick(columnIndex, taskIndex) {
+            const tasks = getTasksForColumn(columnIndex);
+            const selectedTask = tasks[taskIndex];
+
+            // If clicking the same task, deselect it
+            if (selectedPath[columnIndex] === taskIndex) {
+                selectedPath = selectedPath.slice(0, columnIndex);
+            } else {
+                // Update selection path
+                selectedPath = selectedPath.slice(0, columnIndex);
+                selectedPath[columnIndex] = taskIndex;
+            }
+
+            renderColumns();
+        }
+
+        // Draw connector lines between selected tasks using SVG curves
+        function drawConnectors() {
+            const svg = document.getElementById('svgOverlay');
+            // Clear existing paths
+            svg.innerHTML = '';
+
+            for (let i = 0; i < selectedPath.length; i++) {
+                const sourceColumn = i;
+                const targetColumn = i + 1;
+
+                const sourceItem = document.querySelector(
+                    `.task-item[data-column-index="${sourceColumn}"][data-task-index="${selectedPath[i]}"]`
+                );
+                const targetTasks = getTasksForColumn(targetColumn);
+                
+                if (!sourceItem || !targetTasks || targetTasks.length === 0) continue;
+
+                const targetItems = document.querySelectorAll(
+                    `.task-item[data-column-index="${targetColumn}"]`
+                );
+
+                if (targetItems.length === 0) continue;
+
+                const containerRect = document.getElementById('columnsContainer').getBoundingClientRect();
+                const sourceRect = sourceItem.getBoundingClientRect();
+
+                // Calculate source point (right middle of selected task)
+                const sourceX = sourceRect.right - containerRect.left;
+                const sourceY = sourceRect.top + sourceRect.height / 2 - containerRect.top;
+
+                // Draw curve to each target item
+                targetItems.forEach(targetItem => {
+                    const targetRect = targetItem.getBoundingClientRect();
+                    
+                    // Calculate target point (left middle of target task)
+                    const targetX = targetRect.left - containerRect.left;
+                    const targetY = targetRect.top + targetRect.height / 2 - containerRect.top;
+
+                    // Create curved path using cubic Bézier
+                    const path = createCurvedPath(sourceX, sourceY, targetX, targetY);
+                    svg.appendChild(path);
+                });
+            }
+        }
+
+        // Create a curved SVG path using cubic Bézier curve
+        function createCurvedPath(x1, y1, x2, y2) {
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            
+            // Calculate control points for smooth curve
+            // The curve control points are offset horizontally to create the S-curve effect
+            const dx = x2 - x1;
+            const controlOffset = Math.abs(dx) * 0.4; // Increased curve intensity
+            
+            const cp1x = x1 + controlOffset; // First control point
+            const cp1y = y1;
+            
+            const cp2x = x2 - controlOffset; // Second control point
+            const cp2y = y2;
+            
+            // Build the path data string
+            // M = move to starting point
+            // C = cubic Bézier curve (control point 1, control point 2, end point)
+            const d = `M ${x1},${y1} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${x2},${y2}`;
+            
+            path.setAttribute('d', d);
+            path.setAttribute('class', 'connector-path');
+            
+            return path;
+        }
+
+        // Re-draw connectors on window resize
+        window.addEventListener('resize', drawConnectors);
+
+        // Initialize on page load
+        init();
+    </script>
+</body>
+</html>
